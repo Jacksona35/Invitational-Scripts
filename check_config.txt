@@ -1,0 +1,50 @@
+#!/bin/bash
+
+# === CONFIGURATION ===
+MONITOR_INTERVAL=60  # Check every 60 seconds
+LOG_FILE="/var/log/config_integrity_monitor.log"
+
+# Files to monitor
+FILES_TO_MONITOR=(
+    "/etc/network/interfaces"
+    "/etc/netplan/*.yaml"
+    "/etc/bind/named.conf"
+    "/etc/bind/named.conf.default-zones"
+    "/etc/bind/zones/forward.ncaecybergames.org"
+    "/etc/bind/zones/reverse.ncaecybergames.org"
+    "/etc/sudoers"
+)
+
+# Temp storage for baseline hashes
+BASELINE_HASHES="/tmp/config_baseline.hashes"
+
+# === INITIAL SETUP ===
+echo "[*] Creating baseline hashes..."
+> "$BASELINE_HASHES"
+for file in "${FILES_TO_MONITOR[@]}"; do
+    for f in $file; do
+        if [[ -f $f ]]; then
+            sha256sum "$f" >> "$BASELINE_HASHES"
+        fi
+    done
+done
+echo "[*] Baseline established."
+
+# === MONITOR LOOP ===
+echo "[*] Starting monitoring loop..."
+while true; do
+    for file in "${FILES_TO_MONITOR[@]}"; do
+        for f in $file; do
+            if [[ -f $f ]]; then
+                CURRENT_HASH=$(sha256sum "$f")
+                if ! grep -q "$CURRENT_HASH" "$BASELINE_HASHES"; then
+                    echo "[!] CHANGE DETECTED in $f at $(date)" | tee -a "$LOG_FILE"
+                    echo "    NEW HASH: $CURRENT_HASH" | tee -a "$LOG_FILE"
+                fi
+            else
+                echo "[!] MISSING FILE: $f at $(date)" | tee -a "$LOG_FILE"
+            fi
+        done
+    done
+    sleep "$MONITOR_INTERVAL"
+done

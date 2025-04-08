@@ -1,0 +1,74 @@
+#!/bin/bash
+
+set -e
+
+echo "Starting DNS setup..."
+
+# Ensure BIND9 is installed
+sudo apt update
+sudo apt install -y bind9 bind9utils bind9-doc
+
+# Go to BIND config directory
+cd /etc/bind
+
+# Create zones directory
+sudo mkdir -p /etc/bind/zones
+
+# Append zone definitions to named.conf.default-zones
+cat <<EOF | sudo tee -a /etc/bind/named.conf.default-zones
+
+zone "ncaecybergames.org" IN {
+    type master;
+    file "/etc/bind/zones/forward.ncaecybergames.org";
+    allow-update { none; };
+};
+
+zone "70.168.192.in-addr.arpa" IN {
+    type master;
+    file "/etc/bind/zones/reverse.ncaecybergames.org";
+    allow-update { none; };
+};
+EOF
+
+# Create zone files from db.empty template
+sudo cp db.empty /etc/bind/zones/forward.ncaecybergames.org
+sudo cp db.empty /etc/bind/zones/reverse.ncaecybergames.org
+
+# Create forward zone file
+cat <<EOF | sudo tee /etc/bind/zones/forward.ncaecybergames.org
+\$TTL    604800
+@       IN      SOA     ncaecybergames.org. root.ncaecybergames.org. (
+                              2         ; Serial (increment if edited)
+                         604800         ; Refresh
+                          86400         ; Retry
+                        2419200         ; Expire
+                         604800 )       ; Negative Cache TTL
+;
+@       IN      NS      ncaecybergames.org.
+sandbox-Ubuntu  IN      A       192.168.70.2
+www             IN      A       192.168.70.2
+EOF
+
+# Create reverse zone file
+cat <<EOF | sudo tee /etc/bind/zones/reverse.ncaecybergames.org
+\$TTL    604800
+@       IN      SOA     ncaecybergames.org. root.ncaecybergames.org. (
+                              2         ; Serial
+                         604800         ; Refresh
+                          86400         ; Retry
+                        2419200         ; Expire
+                         604800 )       ; Negative Cache TTL
+;
+@       IN      NS      ncaecybergames.org.
+2       IN      PTR     www.ncaecybergames.org.
+2       IN      PTR     sandbox-Ubuntu.ncaecybergames.org.
+EOF
+
+# Set DNS resolver
+sudo bash -c 'echo "nameserver 192.168.70.2" > /etc/resolv.conf'
+
+# Restart BIND
+sudo systemctl restart bind9
+sudo systemctl enable bind9
+
+echo "DNS setup complete. You can check the status with: sudo systemctl status bind9"
