@@ -1,0 +1,17 @@
+General DNS tips
+
+Restrict File Permissions
+
+sudo chown -R bind:bind /etc/bind
+sudo chmod -R 750 /etc/bind
+sudo chmod 640 /etc/bind/zones/*
+
+
+Set Up Immutable Flags
+
+sudo chattr +i /etc/bind/zones/*
+
+to modify
+
+sudo chattr -i filename
+
