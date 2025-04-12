@@ -5,7 +5,7 @@ source /etc/network/interfaces.d/*
 
 # The loopback network interface
 auto eth0
-iface eth0 inte static
+iface eth0 inet static
       address 192.168.t.20
       netmask 255.255.255.0
       gateway 192.168.t.1
