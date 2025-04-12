@@ -1,38 +1,41 @@
 #!/bin/bash
-# kill_recent_sessions.sh
-# This script monitors the current user sessions, sorts them by login time,
-# and kills all sessions except the two oldest (i.e. the earliest logged-in sessions).
-# It extracts the terminal (TTY) from the "who" output and uses it to kill those sessions.
+# kill_sessions_continuous.sh
+# This script continuously monitors user sessions and kills all sessions except the two oldest.
+# It sorts sessions by login time, leaving the two oldest, and kills additional sessions by terminal (TTY).
 
-# Obtain a sorted list of sessions.
-# Assumes "who" output fields are: username TTY Month Day Time (and more)
-sorted_sessions=$(who | sort -k3M -k4n -k5)
+# Run this script as root.
 
-# Count total sessions.
-session_count=$(echo "$sorted_sessions" | wc -l)
-echo "Total sessions (sorted oldest first): $session_count"
-
-# Do nothing if two or fewer sessions are present.
-if [ "$session_count" -le 2 ]; then
-    echo "Two or fewer sessions detected. No action required."
-    exit 0
-fi
-
-# Optionally, determine the current shell's TTY to avoid killing your own session.
-current_tty=$(tty | sed 's#/dev/##')
-echo "Current session TTY: $current_tty"
-
-# Get TTYs for all sessions except the first two (the oldest).
-to_kill=$(echo "$sorted_sessions" | sed '1,2d' | awk '{print $2}')
-
-# Loop over each TTY and kill the session.
-for tty in $to_kill; do
-    # Skip the current session if it appears in the list.
-    if [ "$tty" = "$current_tty" ]; then
-        echo "Skipping current session on TTY: $tty"
-        continue
+while true; do
+    # Capture current sessions from "who" and sort them based on login time.
+    # Sorting is done by the Month, Day, and Time fields.
+    sorted_sessions=$(who | sort -k3M -k4n -k5)
+    
+    # Count the total number of sessions.
+    session_count=$(echo "$sorted_sessions" | wc -l)
+    echo "$(date): Total sessions (sorted oldest first): $session_count"
+    
+    # Only proceed if there are more than two sessions.
+    if [ "$session_count" -gt 2 ]; then
+        # Get the TTY of the current session (avoid disconnecting yourself).
+        current_tty=$(tty | sed 's#/dev/##')
+        echo "Current session TTY: $current_tty"
+        
+        # Extract TTY field for all sessions except the first two (the oldest sessions).
+        # Assumes 'who' output's 2nd column is the TTY.
+        extra_sessions=$(echo "$sorted_sessions" | sed '1,2d' | awk '{print $2}')
+        
+        # Loop through each additional session and kill it.
+        for tty in $extra_sessions; do
+            # Skip current session.
+            if [ "$tty" = "$current_tty" ]; then
+                echo "Skipping current session on TTY: $tty"
+                continue
+            fi
+            echo "Killing session on TTY: $tty"
+            pkill -KILL -t "$tty"
+        done
     fi
-    echo "Killing session on TTY: $tty"
-    # Kill all processes associated with the terminal.
-    pkill -KILL -t "$tty"
+    
+    # Pause for 10 seconds before checking again.
+    sleep 10
 done
